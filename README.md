@@ -13,8 +13,8 @@ Windows desktop app (.NET 8, WinForms) for support staff: tells whether a US inc
 # Small exe (needs .NET 8 Desktop Runtime on the PC)
 dotnet publish src -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o app
 
-# Standalone exe for colleagues (no .NET needed, ~65 MB)
-dotnet publish src -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o dist/PullCloud
+# Standalone folder for colleagues (no .NET needed, fast start; ship the whole folder as a zip)
+dotnet publish src -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -p:DebugType=none -p:SatelliteResourceLanguages=en -o dist/PullCloud
 ```
 
 ## Tests
@@ -35,4 +35,4 @@ Covers time-zone data, DST offsets and transition days, pull status logic, city 
 | `src/Geo.cs` | Online city lookup (Open-Meteo geocoding, no API key) |
 | `src/PasteParser.cs` | Reads pasted US date/time strings |
 | `src/MainForm.cs`, `src/Ui.cs` | User interface |
-| `dist/PullCloud/README.txt` | End-user guide shipped with the exe (not in git) |
+| `dist/PullCloud/README.txt` | End-user guide shipped in the app folder (not in git) |
