@@ -36,6 +36,22 @@ public static class Tz
 {
     private static readonly Dictionary<string, TimeZoneInfo> Cache = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>IANA zones that were renamed – current name → previous name.</summary>
+    private static readonly Dictionary<string, string> Renamed = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Europe/Kyiv"] = "Europe/Kiev",
+        ["America/Nuuk"] = "America/Godthab",
+        ["Asia/Yangon"] = "Asia/Rangoon",
+        ["Asia/Kolkata"] = "Asia/Calcutta",
+        ["Asia/Kathmandu"] = "Asia/Katmandu",
+        ["Asia/Ho_Chi_Minh"] = "Asia/Saigon",
+        ["Atlantic/Faroe"] = "Atlantic/Faeroe",
+        ["Pacific/Pohnpei"] = "Pacific/Ponape",
+        ["Pacific/Chuuk"] = "Pacific/Truk",
+        ["Pacific/Kanton"] = "Pacific/Enderbury",
+        ["America/Ciudad_Juarez"] = "America/Ojinaga",
+    };
+
     /// <summary>Vraća TimeZoneInfo za IANA (npr. America/Chicago) ili Windows ID.</summary>
     public static TimeZoneInfo Get(string id)
     {
@@ -47,6 +63,8 @@ public static class Tz
             {
                 if (TimeZoneInfo.TryConvertIanaIdToWindowsId(id, out var win))
                     tz = TimeZoneInfo.FindSystemTimeZoneById(win!);
+                else if (Renamed.TryGetValue(id, out var old))
+                    tz = Get(old);   // older Windows/ICU data only knows the previous IANA name
                 else throw;
             }
             Cache[id] = tz;

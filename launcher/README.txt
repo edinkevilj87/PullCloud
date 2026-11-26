@@ -30,7 +30,9 @@ HOW TO USE
    (Indiana, Tennessee, Florida, Kentucky, Texas, Michigan, Kansas, Nebraska,
    North/South Dakota, Oregon, Idaho, Nevada, Arizona, Alaska).
    Without a city the app uses the safest (latest) possible pull time.
-4. MY LOCATION - pick your city once and click Save. It is remembered.
+4. MY LOCATION - type your city or country (e.g. "serbia", "manila"), pick it
+   from the list and click Save. It is remembered. Every country is in the list;
+   smaller towns are found online automatically.
 
 RESULT
   PULL AVAILABLE  - 6+ hours have passed, the report can be pulled.

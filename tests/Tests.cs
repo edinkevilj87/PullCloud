@@ -72,6 +72,14 @@ internal static class Program
         Check(WorldCities.All.Count > 60, "world city list populated", WorldCities.All.Count.ToString());
         Check(WorldCities.All.Any(p => p.Name.StartsWith("Sarajevo") && p.TzId == "Europe/Sarajevo"), "Sarajevo in my-location list");
         foreach (var p in WorldCities.All) Check(Tz.TryGet(p.TzId, out _), $"world zone resolves: {p.Name}");
+        foreach (var r in WorldCities.Raw) Check(Tz.TryGet(r.tz, out _), $"world zone known on this PC: {r.name} ({r.tz})");
+        Eq(WorldCities.Raw.Length, WorldCities.Raw.Select(r => r.name).Distinct().Count(), "no duplicate place names");
+        var countries = WorldCities.All.Select(p => p.Name.Contains(", ") ? p.Name[(p.Name.LastIndexOf(", ") + 2)..] : p.Name).Distinct().Count();
+        Check(countries >= 190, "my-location list covers (nearly) every country", countries.ToString());
+        Check(WorldCities.Filter(WorldCities.All, "bosnia").All(p => p.Name.Contains("Bosnia")) && WorldCities.Filter(WorldCities.All, "bosnia").Count >= 6, "filter by country");
+        Check(WorldCities.Filter(WorldCities.All, "São Paulo").Any(p => p.TzId == "America/Sao_Paulo"), "filter ignores accents");
+        Check(WorldCities.Filter(WorldCities.All, "rio")[0].Name.StartsWith("Rio de Janeiro"), "prefix matches first");
+        Eq(WorldCities.All.Count, WorldCities.Filter(WorldCities.All, "  ").Count, "empty filter → full list");
     }
 
     private static TimeSpan Off(string tz, int y, int m, int d, int h = 12) =>
@@ -283,6 +291,8 @@ internal static class Program
             Check(tell.Any(h => h.Admin1 == "Indiana" && Tz.Get(h.Timezone).BaseUtcOffset == TimeSpan.FromHours(-6)), "Tell City, IN online → Central");
             var lb = Geo.SearchAsync("Lewisburg", "US").GetAwaiter().GetResult();
             Check(lb.Any(h => h.Admin1 == "Tennessee"), "Lewisburg, TN found online");
+            var nm = Geo.SearchAsync("Novo Mesto", null).GetAwaiter().GetResult();
+            Check(nm.Any(h => h.Timezone == "Europe/Ljubljana" && h.Display.Contains("Slovenia")), "worldwide search: Novo Mesto → Slovenia");
             var none = Geo.SearchAsync("Xqzzyplorf", "US").GetAwaiter().GetResult();
             Eq(0, none.Count, "nonsense city → no results");
         }
@@ -448,6 +458,32 @@ internal static class Program
         btnSave.PerformClick(); Pump();
         Eq("Saved ✓", btnSave.Text, "Save button confirms");
         Check(File.ReadAllText(settingsPath).Contains("Asia/Tokyo"), "location written to settings file");
+
+        // My location search: typing filters by city or country, Escape/leave restores the full list
+        var fullCount = cmbMe.Items.Count;
+        cmbMe.Text = "japan"; M(f, "FilterMe");
+        Check(cmbMe.Items.Count >= 2 && cmbMe.Items.Cast<WorldPlace>().All(p => p.Name.Contains("Japan")), "typing 'japan' → only Japanese cities", cmbMe.Items.Count.ToString());
+        Check(F<Label>(f, "lblMe").Text.Contains("Type a city"), "search hint while typing");
+        cmbMe.Text = "zzzz"; M(f, "FilterMe");
+        Eq(0, cmbMe.Items.Count, "no local match → empty list (online search follows)");
+        M(f, "RestoreMe");
+        Eq(fullCount, cmbMe.Items.Count, "full list restored");
+        Check(cmbMe.SelectedItem is WorldPlace r && r.TzId == "Asia/Tokyo", "cancelled search keeps the previous location");
+        Eq("Saved ✓", btnSave.Text, "cancelled search → still saved");
+        cmbMe.Text = "bosnia"; M(f, "FilterMe");
+        cmbMe.SelectedItem = cmbMe.Items.Cast<WorldPlace>().First(p => p.Name.StartsWith("Mostar"));
+        M(f, "RestoreMe");
+        Check(cmbMe.SelectedItem is WorldPlace m && m.Name.StartsWith("Mostar"), "picked search result becomes my location");
+        Eq("Save", btnSave.Text, "picked search result is not saved yet");
+        // A place found online is kept in the list once picked
+        var online = new WorldPlace("Novo Mesto, Slovenia", "Europe/Ljubljana");
+        M(f, "ShowMeItems", new List<WorldPlace> { online }, "novo mesto");
+        cmbMe.SelectedItem = online;
+        M(f, "RestoreMe");
+        Check(cmbMe.SelectedItem is WorldPlace nm && nm.Name == "Novo Mesto, Slovenia" && cmbMe.Items.Count == fullCount + 1, "online place added to the list");
+        Check(F<Label>(f, "lblMe").Text.Contains("Europe/Ljubljana"), "online place zone shown");
+        cmbMe.SelectedItem = other; Pump();
+        btnSave.PerformClick(); Pump();
 
         // Copy text
         var copy = (string)M(f, "BuildCopyText")!;

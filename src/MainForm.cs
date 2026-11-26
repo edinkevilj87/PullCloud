@@ -30,7 +30,12 @@ public sealed class MainForm : Form
     };
 
     // My location
-    private readonly ComboBox cmbMe = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 330, MaxDropDownItems = 20 };
+    private readonly ComboBox cmbMe = new() { DropDownStyle = ComboBoxStyle.DropDown, Width = 330, DropDownWidth = 420, MaxDropDownItems = 20 };
+    private readonly System.Windows.Forms.Timer _meOnline = new() { Interval = 700 };
+    private List<WorldPlace> _places = new();
+    private WorldPlace? _me;
+    private bool _meBusy;              // true while the code itself rebuilds the list
+    private CancellationTokenSource? _meCts;
     private readonly Button btnMeSave = Theme.SmallButton("Save", primary: true);
     private readonly Label lblMe = Hint();
     private readonly NumericUpDown numWait = new() { Minimum = 1, Maximum = 360, Width = 64, BorderStyle = BorderStyle.FixedSingle };
@@ -153,7 +158,7 @@ public sealed class MainForm : Form
         var b2 = Stack();
         btnMeSave.Margin = new Padding(8, 0, 0, 0);
         b2.Controls.Add(Theme.Row(
-            Theme.Field("Current location", Theme.Row(cmbMe, btnMeSave), lblMe),
+            Theme.Field("Current location – type a city or country",Theme.Row(cmbMe, btnMeSave), lblMe),
             Theme.Field("WAIT threshold",
                 Theme.Row(numWait, new Label { Text = "minutes", AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(6, 5, 0, 0) }),
                 new Label { Text = "Time left ≤ threshold → WAIT, more → NOT YET", AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(1, 4, 0, 0) })));
@@ -261,7 +266,30 @@ public sealed class MainForm : Form
         txtCity.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _cityDebounce.Stop(); _ = ResolveCityAsync(); } };
         _cityDebounce.Tick += (_, _) => { _cityDebounce.Stop(); _ = ResolveCityAsync(); };
 
-        cmbMe.SelectedIndexChanged += (_, _) => { UpdateMeInfo(); Recalc(); };
+        cmbMe.SelectedIndexChanged += (_, _) =>
+        {
+            if (_meBusy || cmbMe.SelectedItem is not WorldPlace p) return;
+            if (cmbMe.DroppedDown) return;   // still browsing / typing – accepted when the list closes
+            _me = p; UpdateMeInfo(); Recalc();
+        };
+        // Type a city or country to filter the list; places not in the list are searched online.
+        cmbMe.TextUpdate += (_, _) => FilterMe();
+        cmbMe.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Escape) { e.SuppressKeyPress = true; RestoreMe(); }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;
+                // Enter takes the highlighted place, or the first match.
+                var pick = cmbMe.SelectedItem as WorldPlace ?? (cmbMe.Items.Count > 0 ? cmbMe.Items[0] as WorldPlace : null);
+                if (pick != null) _me = pick;
+                _meBusy = true; cmbMe.DroppedDown = false; _meBusy = false;
+                RestoreMe();
+            }
+        };
+        cmbMe.DropDownClosed += (_, _) => { if (!_meBusy) BeginInvoke(RestoreMe); };
+        cmbMe.Leave += (_, _) => RestoreMe();
+        _meOnline.Tick += async (_, _) => { _meOnline.Stop(); await SearchMeOnlineAsync(); };
         btnMeSave.Click += (_, _) => SaveMe();
         numWait.ValueChanged += (_, _) => { _settings.WaitThresholdMinutes = (int)numWait.Value; _settings.Save(); Recalc(); };
 
@@ -274,7 +302,7 @@ public sealed class MainForm : Form
     }
 
     private UsState? SelectedState => cmbState.SelectedItem as UsState;
-    private WorldPlace? SelectedPlace => cmbMe.SelectedItem as WorldPlace;
+    private WorldPlace? SelectedPlace => _me;
 
     private TimeZoneInfo MyTz =>
         SelectedPlace is { } p && Tz.TryGet(p.TzId, out var tz) ? tz! : TimeZoneInfo.Local;
@@ -422,18 +450,115 @@ public sealed class MainForm : Form
 
     private void FillMyLocations()
     {
-        var items = WorldCities.All.ToList();
+        _places = WorldCities.All.ToList();
         // Exact name match; otherwise same city (first word) in the same zone; otherwise keep the saved place as its own entry.
         var firstWord = Util.Norm(_settings.MyLocationName).Split(' ').FirstOrDefault() ?? "";
-        var saved = items.FirstOrDefault(p => p.Name == _settings.MyLocationName)
-                    ?? items.FirstOrDefault(p => p.TzId == _settings.MyTzId && Util.Norm(p.Name).Split(' ')[0] == firstWord);
+        var saved = _places.FirstOrDefault(p => p.Name == _settings.MyLocationName)
+                    ?? _places.FirstOrDefault(p => p.TzId == _settings.MyTzId && Util.Norm(p.Name).Split(' ')[0] == firstWord);
         if (saved == null && Tz.TryGet(_settings.MyTzId, out _))
         {
             saved = new WorldPlace(_settings.MyLocationName, _settings.MyTzId);
-            items.Insert(0, saved);
+            _places.Insert(0, saved);
         }
-        foreach (var p in items) cmbMe.Items.Add(p);
-        cmbMe.SelectedItem = saved ?? items.FirstOrDefault(p => p.TzId == "Europe/Sarajevo") ?? items.First();
+        _me = saved ?? _places.FirstOrDefault(p => p.TzId == "Europe/Sarajevo") ?? _places.First();
+        foreach (var p in _places) cmbMe.Items.Add(p);
+        cmbMe.SelectedItem = _me;
+    }
+
+    /// <summary>Called while the user types in "Current location": show only matching places.</summary>
+    private void FilterMe()
+    {
+        var text = cmbMe.Text;
+        var hits = WorldCities.Filter(_places, text);
+        ShowMeItems(hits, text);
+        _meOnline.Stop();
+        _meCts?.Cancel();
+        var q = text.Trim();
+        // Only go online when the built-in list has nothing (e.g. a smaller town).
+        if (q.Length >= 3 && hits.Count == 0) _meOnline.Start();
+        lblMe.Text = hits.Count > 0 || q.Length < 3 ? "Type a city or country…" : "Not in the list – searching online…";
+    }
+
+    private void ShowMeItems(List<WorldPlace> items, string text)
+    {
+        var caret = Math.Min(cmbMe.SelectionStart, text.Length);
+        _meBusy = true;
+        try
+        {
+            // Close the list and clear the highlight BEFORE changing items – an open list with a stale
+            // highlighted index crashes WinForms when the item count drops to zero.
+            if (cmbMe.DroppedDown) cmbMe.DroppedDown = false;
+            cmbMe.SelectedIndex = -1;
+            cmbMe.BeginUpdate();
+            cmbMe.Items.Clear();
+            foreach (var p in items) cmbMe.Items.Add(p);
+            cmbMe.EndUpdate();
+            // Re-open so the list height matches the new number of items.
+            if (cmbMe.Focused && items.Count > 0)
+            {
+                cmbMe.DroppedDown = true;
+                Cursor.Current = Cursors.Default; // dropping the list programmatically hides the mouse pointer
+            }
+            cmbMe.Text = text;
+            cmbMe.SelectionStart = caret;
+            cmbMe.SelectionLength = 0;
+        }
+        finally { _meBusy = false; }
+    }
+
+    /// <summary>Accepts the picked place (or goes back to the previous one) and shows the full list again.</summary>
+    private void RestoreMe()
+    {
+        if (_meBusy) return;
+        _meOnline.Stop();
+        _meCts?.Cancel();
+        if (cmbMe.SelectedItem is WorldPlace picked && picked.Name == cmbMe.Text) _me = picked;
+        if (_me != null && !_places.Contains(_me)) _places.Insert(0, _me);   // place found online
+        _meBusy = true;
+        try
+        {
+            cmbMe.BeginUpdate();
+            cmbMe.Items.Clear();
+            foreach (var p in _places) cmbMe.Items.Add(p);
+            cmbMe.EndUpdate();
+            cmbMe.SelectedItem = _me;
+        }
+        finally { _meBusy = false; }
+        UpdateMeInfo();
+        Recalc();
+    }
+
+    private async Task SearchMeOnlineAsync()
+    {
+        var q = cmbMe.Text.Trim();
+        if (q.Length < 3) return;
+        _meCts?.Cancel();
+        var cts = _meCts = new CancellationTokenSource();
+        List<GeoHit> hits;
+        try { hits = await Geo.SearchAsync(q, null, cts.Token); }
+        catch (OperationCanceledException) { return; }
+        catch
+        {
+            if (cmbMe.Text.Trim() == q) lblMe.Text = "Online search unavailable – pick a nearby city in your country.";
+            return;
+        }
+        if (cts.IsCancellationRequested || cmbMe.Text.Trim() != q || !cmbMe.Focused) return;
+
+        var local = WorldCities.Filter(_places, q);
+        // "City, Country" (most populated first); the region is added only when needed to tell zones apart.
+        var online = hits
+            .Where(h => Tz.TryGet(h.Timezone, out _))
+            .OrderByDescending(h => h.Population)
+            .GroupBy(h => (Util.Norm(h.Name), h.Country))
+            .SelectMany(g => g.DistinctBy(h => h.Timezone).Count() == 1
+                ? new[] { new WorldPlace(string.Join(", ", new[] { g.First().Name, g.First().Country }.Where(s => !string.IsNullOrEmpty(s))), g.First().Timezone) }
+                : g.DistinctBy(h => h.Timezone).Select(h => new WorldPlace(h.Display, h.Timezone)).ToArray())
+            .Where(p => !_places.Any(x => string.Equals(x.Name, p.Name, StringComparison.OrdinalIgnoreCase)))
+            .DistinctBy(p => p.Name)
+            .Take(10)
+            .ToList();
+        ShowMeItems(local.Concat(online).ToList(), cmbMe.Text);
+        lblMe.Text = local.Count + online.Count == 0 ? "No place found – try another spelling." : "Type a city or country…";
     }
 
     private bool IsSaved => SelectedPlace is { } p && p.Name == _settings.MyLocationName && p.TzId == _settings.MyTzId;
