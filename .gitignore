@@ -1,0 +1,12 @@
+# Build output
+bin/
+obj/
+
+# Published binaries (rebuild with dotnet publish – see README)
+app/
+dist/
+
+# IDE
+.vs/
+.vscode/
+*.user

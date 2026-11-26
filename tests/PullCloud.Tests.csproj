@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PullCloud.Tests</RootNamespace>
+    <NoWarn>CS8618;CS8602;CS8604;CS8600;CS8601</NoWarn>
+  </PropertyGroup>
+  <!-- Compile the app's sources directly (everything except its Program.cs entry point). -->
+  <ItemGroup>
+    <Compile Include="..\src\*.cs" Exclude="..\src\Program.cs" />
+  </ItemGroup>
+</Project>

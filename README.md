@@ -1,0 +1,38 @@
+# Pull from the Cloud calculator
+
+Windows desktop app (.NET 8, WinForms) for support staff: tells whether a US incident report can be pulled from the cloud — at least 6 hours must pass since it was created.
+
+- Input: *Incident created on* (US local time), **State** (required), **City** (optional — needed for states that span several time zones).
+- Result: **PULL AVAILABLE** / **WAIT** / **NOT YET**, with the exact pull time in your own time zone.
+- Daylight saving time is handled for the US, Europe and every other location (IANA time zones).
+- Without a city in a multi-zone state, the latest (safest) pull time is used.
+
+## Build
+
+```powershell
+# Small exe (needs .NET 8 Desktop Runtime on the PC)
+dotnet publish src -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o app
+
+# Standalone exe for colleagues (no .NET needed, ~65 MB)
+dotnet publish src -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o dist/PullCloud
+```
+
+## Tests
+
+```powershell
+dotnet run --project tests            # optional arg: folder for UI screenshots
+```
+
+Covers time-zone data, DST offsets and transition days, pull status logic, city matching, the paste parser, online city lookup and the main window. The tests back up and restore `%APPDATA%\PullCloud\settings.json`.
+
+## Project layout
+
+| Path | Purpose |
+|---|---|
+| `src/PullCalc.cs` | 6-hour pull rule and status logic |
+| `src/TimeZones.cs` | Time-zone helpers (DST gap/overlap handling) |
+| `src/UsStates.cs` | US states, zones, cities in multi-zone states, world locations |
+| `src/Geo.cs` | Online city lookup (Open-Meteo geocoding, no API key) |
+| `src/PasteParser.cs` | Reads pasted US date/time strings |
+| `src/MainForm.cs`, `src/Ui.cs` | User interface |
+| `dist/PullCloud/README.txt` | End-user guide shipped with the exe (not in git) |
