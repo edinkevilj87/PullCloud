@@ -1,0 +1,47 @@
+name: Release
+
+# Push a tag like v1.2.0 -> tests run, PullCloud.zip is built and published as a GitHub Release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Test
+        run: dotnet run --project tests -c Release
+
+      - name: Build package
+        shell: pwsh
+        run: |
+          dotnet publish src -c Release -r win-x64 --self-contained false -p:UseAppHost=false -p:PublishReadyToRun=true -p:DebugType=none -p:SatelliteResourceLanguages=en -o out/PullCloud/app
+          Copy-Item src/PullCloud.ico out/PullCloud/app/
+          Copy-Item 'launcher/Start PullCloud.cmd', 'launcher/Create desktop shortcut.cmd', launcher/README.txt out/PullCloud/
+          Compress-Archive -Path out/PullCloud -DestinationPath PullCloud.zip
+          $h = (Get-FileHash PullCloud.zip -Algorithm SHA256).Hash
+          Copy-Item launcher/RELEASE_NOTES.md notes.md
+          Add-Content notes.md "`nSHA-256 of PullCloud.zip: ``$h``"
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag PullCloud.zip --clobber
+            gh release edit $tag --notes-file notes.md --latest
+          } else {
+            gh release create $tag PullCloud.zip --title "Pull from the Cloud calculator $tag" --notes-file notes.md --latest
+          }

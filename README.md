@@ -21,6 +21,18 @@ copy launcher\*.cmd dist\PullCloud\
 # + dist/PullCloud/README.txt, then zip the dist/PullCloud folder
 ```
 
+## Releasing
+
+Releases are automatic. Push a version tag and GitHub Actions ([.github/workflows/release.yml](.github/workflows/release.yml))
+runs the tests, builds `PullCloud.zip` (app + `launcher/` files) and publishes it as the latest GitHub Release:
+
+```powershell
+git tag -a v1.2.0 -m "v1.2.0"
+git push origin main v1.2.0
+```
+
+End-user files shipped in the zip live in `launcher/` (`README.txt`, start/shortcut scripts, `RELEASE_NOTES.md`).
+
 ## Tests
 
 ```powershell
