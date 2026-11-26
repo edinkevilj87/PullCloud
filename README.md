@@ -13,8 +13,12 @@ Windows desktop app (.NET 8, WinForms) for support staff: tells whether a US inc
 # Small exe (needs .NET 8 Desktop Runtime on the PC)
 dotnet publish src -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o app
 
-# Standalone folder for colleagues (no .NET needed, fast start; ship the whole folder as a zip)
-dotnet publish src -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -p:DebugType=none -p:SatelliteResourceLanguages=en -o dist/PullCloud
+# Package for colleagues: runs via Microsoft's signed dotnet.exe (needs .NET 8+ Desktop Runtime).
+# Unsigned .exe files are held up by the company Defender ASR rule; dotnet.exe is not.
+dotnet publish src -c Release -r win-x64 --self-contained false -p:UseAppHost=false -p:PublishReadyToRun=true -p:DebugType=none -p:SatelliteResourceLanguages=en -o dist/PullCloud/app
+copy src\PullCloud.ico dist\PullCloud\app\
+copy launcher\*.cmd dist\PullCloud\
+# + dist/PullCloud/README.txt, then zip the dist/PullCloud folder
 ```
 
 ## Tests

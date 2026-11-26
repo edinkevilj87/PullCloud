@@ -10,5 +10,11 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <InvariantGlobalization>false</InvariantGlobalization>
     <NoWarn>CS8618;CS8602;CS8604</NoWarn>
+    <ApplicationIcon>PullCloud.ico</ApplicationIcon>
+    <!-- Run on .NET 8 or any newer Desktop Runtime the PC has. -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="PullCloud.ico" LogicalName="PullCloud.PullCloud.ico" />
+  </ItemGroup>
 </Project>

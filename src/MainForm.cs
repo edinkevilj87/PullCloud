@@ -65,6 +65,12 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
+        try
+        {
+            using var ico = typeof(MainForm).Assembly.GetManifestResourceStream("PullCloud.PullCloud.ico");
+            if (ico != null) Icon = new Icon(ico);
+        }
+        catch { /* default icon */ }
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         Text = AppTitle;
@@ -103,6 +109,14 @@ public sealed class MainForm : Form
         if (Width > wa.Width) Width = wa.Width;
         if (StartPosition == FormStartPosition.CenterScreen)
             Location = new Point(wa.Left + (wa.Width - Width) / 2, wa.Top + (wa.Height - Height) / 2);
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        // The launcher starts dotnet.exe minimized (to hide its console); Windows would pass that on to this window.
+        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        Activate();
     }
 
     private static Label Hint() => new() { AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(1, 4, 0, 0), MaximumSize = new Size(420, 0) };
