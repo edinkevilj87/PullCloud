@@ -1,22 +1,19 @@
 @echo off
-rem Starts Pull from the Cloud calculator through Microsoft's signed dotnet.exe.
+rem Starts Pull from the Cloud calculator with the bundled, Microsoft-signed .NET runtime (no install, no admin).
 setlocal
+set "DOTNET=%~dp0runtime\dotnet.exe"
 set "DLL=%~dp0app\PullCloud.dll"
 
-where dotnet >nul 2>&1 || goto :noruntime
-dotnet --list-runtimes 2>nul | findstr /r /c:"Microsoft.WindowsDesktop.App [89]\." /c:"Microsoft.WindowsDesktop.App [1-9][0-9]\." >nul || goto :noruntime
+if not exist "%DOTNET%" goto :missing
+if not exist "%DLL%" goto :missing
 
-start "PullCloud" /min dotnet "%DLL%"
+start "PullCloud" /min "%DOTNET%" "%DLL%"
 exit /b 0
 
-:noruntime
+:missing
 echo.
-echo  Pull from the Cloud calculator needs the free Microsoft ".NET 8 Desktop Runtime".
+echo  Some files are missing. Please unzip the WHOLE PullCloud folder
+echo  (including the "app" and "runtime" folders) and start again.
 echo.
-echo  The download page will open now. Choose:
-echo     .NET Desktop Runtime 8.x  -^>  Windows  -^>  x64  (Installer)
-echo  Install it, then start PullCloud again.
-echo.
-start "" "https://dotnet.microsoft.com/en-us/download/dotnet/8.0"
 pause
 exit /b 1

@@ -10,15 +10,14 @@ HOW TO START
 1. Unzip the WHOLE PullCloud folder somewhere local, e.g. C:\Tools\PullCloud
    (preferably not inside OneDrive). Keep the folder structure as it is.
 2. Double-click "Start PullCloud.cmd".
-   - If the free Microsoft ".NET 8 Desktop Runtime" is missing, the download page
-     opens: choose .NET Desktop Runtime 8.x -> Windows x64 Installer, install it
-     (one time only), then start again.
 3. Optional, recommended: double-click "Create desktop shortcut.cmd" once.
    You then get a "Pull from the Cloud" icon on your Desktop that opens the app
    directly. (If you move the PullCloud folder later, run it again.)
 
-The app starts through Microsoft's own dotnet.exe, so it opens in about a second
-and is not held up by the company antivirus check for unknown .exe files.
+Nothing needs to be installed and no admin rights are required: the folder
+contains its own copy of Microsoft's .NET runtime (in "runtime"). The app starts
+through Microsoft's signed dotnet.exe, so it opens in about a second and is not
+held up by the company antivirus check for unknown .exe files.
 
 
 HOW TO USE

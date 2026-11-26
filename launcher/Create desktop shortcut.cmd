@@ -2,10 +2,9 @@
 rem Creates a "Pull from the Cloud" shortcut on the Desktop (no console window when starting).
 setlocal
 set "APPDIR=%~dp0app"
-set "DOTNET="
-for /f "delims=" %%D in ('where dotnet 2^>nul') do if not defined DOTNET set "DOTNET=%%D"
-if not defined DOTNET (
-  echo .NET is not installed yet. Run "Start PullCloud.cmd" first - it shows where to get it.
+set "DOTNET=%~dp0runtime\dotnet.exe"
+if not exist "%DOTNET%" (
+  echo Some files are missing. Please unzip the WHOLE PullCloud folder and try again.
   pause
   exit /b 1
 )

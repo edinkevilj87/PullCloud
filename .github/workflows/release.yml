@@ -27,6 +27,23 @@ jobs:
           dotnet publish src -c Release -r win-x64 --self-contained false -p:UseAppHost=false -p:PublishReadyToRun=true -p:DebugType=none -p:SatelliteResourceLanguages=en -o out/PullCloud/app
           Copy-Item src/PullCloud.ico out/PullCloud/app/
           Copy-Item 'launcher/Start PullCloud.cmd', 'launcher/Create desktop shortcut.cmd', launcher/README.txt out/PullCloud/
+
+          # Bundle Microsoft's portable .NET 8 runtime (no install / no admin rights needed on colleagues' PCs).
+          $meta = Invoke-RestMethod https://builds.dotnet.microsoft.com/dotnet/release-metadata/8.0/releases.json
+          $rel = $meta.releases | Where-Object { $_.'release-version' -eq $meta.'latest-runtime' }
+          $files = @(
+            ($rel.runtime.files | Where-Object name -eq 'dotnet-runtime-win-x64.zip'),
+            ($rel.windowsdesktop.files | Where-Object name -eq 'windowsdesktop-runtime-win-x64.zip')
+          )
+          foreach ($f in $files) {
+            Invoke-WebRequest $f.url -OutFile rt.zip
+            if ((Get-FileHash rt.zip -Algorithm SHA512).Hash -ne $f.hash) { throw "Hash mismatch: $($f.url)" }
+            Expand-Archive rt.zip out/PullCloud/runtime -Force
+            Remove-Item rt.zip
+          }
+          Write-Host "Bundled .NET runtime $($meta.'latest-runtime')"
+          if (-not (Test-Path out/PullCloud/runtime/dotnet.exe)) { throw 'dotnet.exe missing' }
+
           Compress-Archive -Path out/PullCloud -DestinationPath PullCloud.zip
           $h = (Get-FileHash PullCloud.zip -Algorithm SHA256).Hash
           Copy-Item launcher/RELEASE_NOTES.md notes.md
